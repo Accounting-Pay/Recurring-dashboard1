@@ -6,6 +6,11 @@
     <title>Recurring Payments Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase Cloud SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
     <style>
         :root {
             --primary: #4f46e5;
@@ -47,6 +52,9 @@
         .btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; cursor: pointer; padding: 6px 10px; font-size: 12px; border-radius: 6px; font-weight: 600; }
         .btn-danger:hover { background: #fca5a5; }
 
+        .admin-only { display: none !important; }
+        .is-admin .admin-only { display: inline-block !important; }
+
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .stat-card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
         .stat-card h3 { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
@@ -59,7 +67,6 @@
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .card-title { font-size: 16px; font-weight: 600; }
 
-        /* Calendar Styles */
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
         .day-label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 8px 0; }
         .day-cell { min-height: 85px; border: 1px solid var(--border); border-radius: 8px; padding: 6px; text-align: left; background: #fff; }
@@ -67,18 +74,15 @@
         .day-cell.other-month { background: #f1f5f9; opacity: 0.5; }
         .payment-chip { background: #e0e7ff; color: var(--primary); font-size: 10px; font-weight: 600; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* Type Badges */
         .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; }
         .badge-admin { background: #e0f2fe; color: #0369a1; }
         .badge-ops { background: #fef3c7; color: #b45309; }
         .badge-sales { background: #dcfce7; color: #15803d; }
 
-        /* Table Styles */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
         th { color: var(--text-muted); font-weight: 500; background: #f8fafc; }
 
-        /* Modal */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; z-index: 100; }
         .modal.active { display: flex; }
         .modal-content { background: white; padding: 24px; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
@@ -88,15 +92,22 @@
 
         .cat-list { list-style: none; margin-top: 10px; max-height: 180px; overflow-y: auto; }
         .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        
+        .role-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .role-view { background: #f1f5f9; color: #475569; }
+        .role-edit { background: #dcfce7; color: #15803d; }
     </style>
 </head>
-<body>
+<body id="bodyTag">
 
 <div class="container">
     <header>
         <div>
-            <h1 style="font-size: 20px; font-weight: 700;">Recurring Payments Dashboard</h1>
-            <p style="font-size: 13px; color: var(--text-muted);">Track and forecast your expense schedule with custom labels, categories & frequencies</p>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                <h1 style="font-size: 20px; font-weight: 700;">Recurring Payments Dashboard</h1>
+                <span id="roleBadge" class="role-badge role-view">👁️ Live View</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-muted);">Real-time Cloud Connected Dashboard</p>
         </div>
         <div class="header-controls">
             <select id="currencySelect" onchange="updateDashboard()">
@@ -115,9 +126,12 @@
             </select>
             <select id="monthSelect" onchange="updateDashboard()"></select>
             <select id="yearSelect" onchange="updateDashboard()"></select>
-            <button class="btn-secondary" onclick="openCategoriesModal()">📁 Categories</button>
-            <button class="btn-secondary" onclick="openLabelsModal()">⚙️ Edit Labels</button>
-            <button class="btn-primary" onclick="openModal()">+ Add Payment</button>
+
+            <button class="btn-secondary admin-only" onclick="openCategoriesModal()">📁 Categories</button>
+            <button class="btn-secondary admin-only" onclick="openLabelsModal()">⚙️ Edit Labels</button>
+            <button class="btn-primary admin-only" onclick="openModal()">+ Add Payment</button>
+            
+            <button id="authBtn" class="btn-secondary" onclick="toggleAuth()" style="border-color: #cbd5e1;">🔒 Edit Mode</button>
         </div>
     </header>
 
@@ -181,7 +195,7 @@
     </div>
 </div>
 
-<!-- Add/Edit Payment Modal -->
+<!-- Modal Forms -->
 <div class="modal" id="paymentModal">
     <div class="modal-content">
         <h2 style="font-size: 18px; margin-bottom: 16px;" id="modalTitle">Add Payment</h2>
@@ -219,14 +233,13 @@
                 </select>
             </div>
 
-            <!-- Conditional Inputs based on Frequency -->
             <div class="form-group" id="dateGroup" style="display:none;">
-                <label>Specific Date (تاريخ الدفعة)</label>
+                <label>Specific Date</label>
                 <input type="date" id="payDate">
             </div>
 
             <div class="form-group" id="weekdayGroup" style="display:none;">
-                <label>Day of Week (يوم الأسبوع)</label>
+                <label>Day of Week</label>
                 <select id="payWeekday">
                     <option value="0">Sunday</option>
                     <option value="1">Monday</option>
@@ -244,12 +257,12 @@
             </div>
 
             <div class="form-group" id="monthGroup" style="display:none;">
-                <label>Month (1-12) / Starting Month for Quarterly</label>
+                <label>Month (1-12) / Starting Month</label>
                 <input type="number" min="1" max="12" id="payMonth" value="1">
             </div>
 
             <div class="form-group" id="customNotesGroup" style="display:none;">
-                <label>Custom Cycle Details / Notes (تفاصيل الدورة المخصصة)</label>
+                <label>Custom Cycle Details / Notes</label>
                 <input type="text" id="payCustomNotes" placeholder="e.g. Every 14 days, Every 6 months...">
             </div>
 
@@ -261,7 +274,6 @@
     </div>
 </div>
 
-<!-- Edit Categories Modal -->
 <div class="modal" id="categoriesModal">
     <div class="modal-content">
         <h2 style="font-size: 18px; margin-bottom: 16px;">Manage Categories</h2>
@@ -276,7 +288,6 @@
     </div>
 </div>
 
-<!-- Edit Custom Labels Modal -->
 <div class="modal" id="labelsModal">
     <div class="modal-content">
         <h2 style="font-size: 18px; margin-bottom: 16px;">Edit Type Labels</h2>
@@ -302,30 +313,75 @@
 </div>
 
 <script>
-    let categories = JSON.parse(localStorage.getItem('custom_categories')) || [
-        'Rent', 'Utilities', 'Subscriptions', 'Insurance', 'Salaries', 'Marketing', 'Other'
-    ];
-
-    let customLabels = JSON.parse(localStorage.getItem('custom_type_labels')) || {
-        Administrative: 'Administrative',
-        Operational: 'Operational',
-        'Sales & Marketing': 'Sales Expense'
+    // Config الخاص بمشروعكِ
+    const firebaseConfig = {
+        apiKey: "AIzaSyAaI06c_lXqa1dzU9UXdKIYBsPeI1Ufsfs",
+        authDomain: "my-payments-ca631.firebaseapp.com",
+        databaseURL: "https://my-payments-ca631-default-rtdb.firebaseio.com",
+        projectId: "my-payments-ca631",
+        storageBucket: "my-payments-ca631.firebasestorage.app",
+        messagingSenderId: "783631614072",
+        appId: "1:783631614072:web:fad81fd025bedfcad62d8d",
+        measurementId: "G-RG08RLZHTZ"
     };
 
-    let payments = JSON.parse(localStorage.getItem('recurring_payments_v3')) || [
-        { id: 1, title: 'Office Lease', amount: 10000, type: 'Administrative', category: 'Rent', freq: 'Monthly', day: 1, month: 1 },
-        { id: 2, title: 'Cloud Infrastructure', amount: 850, type: 'Operational', category: 'Subscriptions', freq: 'Monthly', day: 15, month: 1 },
-        { id: 3, title: 'Marketing Campaign', amount: 5000, type: 'Sales & Marketing', category: 'Marketing', freq: 'Quarterly', day: 1, month: 1 },
-        { id: 4, title: 'Equipment Purchase', amount: 2500, type: 'Operational', category: 'Other', freq: 'One-Time', date: '2026-08-20' }
-    ];
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
+    const ADMIN_PASSWORD = "1234";
+    let isAdmin = false;
+
+    let categories = ['Rent', 'Utilities', 'Subscriptions', 'Insurance', 'Salaries', 'Marketing', 'Other'];
+    let customLabels = { Administrative: 'Administrative', Operational: 'Operational', 'Sales & Marketing': 'Sales Expense' };
+    let payments = [];
     let chartInstance = null;
 
     function init() {
-        applyLabelsToUI();
-        populateCategorySelect();
         populateSelectors();
-        updateDashboard();
+        
+        // جلب البيانات ومتابعة التحديثات الفورية أونلاين
+        db.ref('dashboard_data').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                if (data.payments) payments = data.payments;
+                if (data.categories) categories = data.categories;
+                if (data.customLabels) customLabels = data.customLabels;
+            }
+            applyLabelsToUI();
+            populateCategorySelect();
+            updateDashboard();
+        });
+    }
+
+    function syncToCloud() {
+        db.ref('dashboard_data').set({
+            payments: payments,
+            categories: categories,
+            customLabels: customLabels
+        });
+    }
+
+    function toggleAuth() {
+        if (isAdmin) {
+            isAdmin = false;
+            document.getElementById('bodyTag').classList.remove('is-admin');
+            document.getElementById('roleBadge').className = "role-badge role-view";
+            document.getElementById('roleBadge').innerText = "👁️ Live View";
+            document.getElementById('authBtn').innerText = "🔒 Edit Mode";
+            updateDashboard();
+        } else {
+            const pwd = prompt("Enter Password to enable Edit Mode:");
+            if (pwd === ADMIN_PASSWORD) {
+                isAdmin = true;
+                document.getElementById('bodyTag').classList.add('is-admin');
+                document.getElementById('roleBadge').className = "role-badge role-edit";
+                document.getElementById('roleBadge').innerText = "✏️ Edit Access";
+                document.getElementById('authBtn').innerText = "🔓 Lock Edits";
+                updateDashboard();
+            } else if (pwd !== null) {
+                alert("Incorrect Password!");
+            }
+        }
     }
 
     function applyLabelsToUI() {
@@ -361,8 +417,7 @@
     }
 
     function isPaymentDueInMonth(p, month, year) {
-        if (p.freq === 'Monthly') return true;
-        if (p.freq === 'Weekly') return true; // Weekly recurs every month
+        if (p.freq === 'Monthly' || p.freq === 'Weekly' || p.freq === 'Custom') return true;
         if (p.freq === 'Yearly') return (parseInt(p.month) - 1) === month;
         if (p.freq === 'Quarterly') {
             const startMonth = (parseInt(p.month) - 1) % 3;
@@ -372,12 +427,10 @@
             const d = new Date(p.date);
             return d.getMonth() === month && d.getFullYear() === year;
         }
-        if (p.freq === 'Custom') return true;
         return false;
     }
 
     function updateDashboard() {
-        saveData();
         const selectedMonth = parseInt(document.getElementById('monthSelect').value);
         const selectedYear = parseInt(document.getElementById('yearSelect').value);
         const selectedTypeFilter = document.getElementById('typeFilter').value;
@@ -431,7 +484,7 @@
             const dayPayments = filteredPayments.filter(p => {
                 if (!isPaymentDueInMonth(p, month, year)) return false;
 
-                if (p.freq === 'Monthly' || p.freq === 'Yearly' || p.freq === 'Quarterly') {
+                if (p.freq === 'Monthly' || p.freq === 'Yearly' || p.freq === 'Quarterly' || p.freq === 'Custom') {
                     return parseInt(p.day) === day;
                 }
                 if (p.freq === 'Weekly') {
@@ -440,9 +493,6 @@
                 if (p.freq === 'One-Time' && p.date) {
                     const d = new Date(p.date);
                     return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
-                }
-                if (p.freq === 'Custom') {
-                    return parseInt(p.day) === day;
                 }
                 return false;
             });
@@ -491,6 +541,11 @@
             else if (p.freq === 'Yearly') scheduleText = `Day ${p.day} (Month ${p.month})`;
             else if (p.freq === 'Custom') scheduleText = `${p.customNotes || 'Custom schedule'} (Day ${p.day || 1})`;
 
+            const editBtnsHtml = isAdmin ? `
+                <button class="btn-edit" onclick="editPayment(${p.id})">Edit</button>
+                <button class="btn-danger" onclick="deletePayment(${p.id})">Delete</button>
+            ` : '';
+
             return `
             <tr>
                 <td><strong>${p.title}</strong></td>
@@ -501,70 +556,10 @@
                 <td>${scheduleText}</td>
                 <td>
                     <button class="btn-outlook" onclick="addToOutlook(${p.id})">📅 Add to Outlook</button>
-                    <button class="btn-edit" onclick="editPayment(${p.id})">Edit</button>
-                    <button class="btn-danger" onclick="deletePayment(${p.id})">Delete</button>
+                    ${editBtnsHtml}
                 </td>
             </tr>
         `}).join('');
-    }
-
-    function addToOutlook(id) {
-        const item = payments.find(p => p.id === id);
-        if (!item) return;
-
-        const curr = document.getElementById('currencySelect').value;
-        const now = new Date();
-        let eventDate = new Date();
-
-        if (item.freq === 'One-Time' && item.date) {
-            eventDate = new Date(item.date);
-        } else {
-            let month = item.month ? parseInt(item.month) - 1 : now.getMonth();
-            let day = item.day ? parseInt(item.day) : 1;
-            eventDate = new Date(now.getFullYear(), month, day, 9, 0, 0);
-            if (eventDate < now) eventDate.setMonth(eventDate.getMonth() + 1);
-        }
-
-        const formatDate = (date) => date.toISOString().replace(/-|:|\.\d+/g, '');
-        const startDate = formatDate(eventDate);
-        const endDate = formatDate(new Date(eventDate.getTime() + 30 * 60000));
-
-        let rrule = '';
-        if (item.freq === 'Weekly') rrule = 'RRULE:FREQ=WEEKLY';
-        else if (item.freq === 'Monthly') rrule = 'RRULE:FREQ=MONTHLY';
-        else if (item.freq === 'Quarterly') rrule = 'RRULE:FREQ=MONTHLY;INTERVAL=3';
-        else if (item.freq === 'Yearly') rrule = 'RRULE:FREQ=YEARLY';
-
-        const icsLines = [
-            'BEGIN:VCALENDAR',
-            'VERSION:2.0',
-            'PRODID:-//Recurring Payments Dashboard//EN',
-            'BEGIN:VEVENT',
-            `SUMMARY:Payment Due: ${item.title} (${curr} ${item.amount})`,
-            `DESCRIPTION:Payment title: ${item.title}\\nAmount: ${curr} ${item.amount}\\nCategory: ${item.category}`,
-            `DTSTART:${startDate}`,
-            `DTEND:${endDate}`
-        ];
-
-        if (rrule) icsLines.push(rrule);
-
-        icsLines.push(
-            'BEGIN:VALARM',
-            'TRIGGER:-P1D',
-            'ACTION:DISPLAY',
-            'DESCRIPTION:Reminder: Payment due tomorrow',
-            'END:VALARM',
-            'END:VEVENT',
-            'END:VCALENDAR'
-        );
-
-        const blob = new Blob([icsLines.join('\n')], { type: 'text/calendar;charset=utf-8' });
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.setAttribute('download', `${item.title.replace(/\s+/g, '_')}_reminder.ics`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     }
 
     function toggleFreqFields() {
@@ -577,6 +572,7 @@
     }
 
     function openModal() {
+        if (!isAdmin) return;
         document.getElementById('paymentForm').reset();
         document.getElementById('editPaymentId').value = '';
         document.getElementById('modalTitle').innerText = 'Add Payment';
@@ -589,6 +585,7 @@
     }
 
     function openCategoriesModal() {
+        if (!isAdmin) return;
         renderCatList();
         document.getElementById('categoriesModal').classList.add('active');
     }
@@ -608,25 +605,26 @@
     }
 
     function addCategory() {
+        if (!isAdmin) return;
         const input = document.getElementById('newCatInput');
         const val = input.value.trim();
         if (val && !categories.includes(val)) {
             categories.push(val);
             input.value = '';
-            localStorage.setItem('custom_categories', JSON.stringify(categories));
-            populateCategorySelect();
+            syncToCloud();
             renderCatList();
         }
     }
 
     function deleteCategory(index) {
+        if (!isAdmin) return;
         categories.splice(index, 1);
-        localStorage.setItem('custom_categories', JSON.stringify(categories));
-        populateCategorySelect();
+        syncToCloud();
         renderCatList();
     }
 
     function openLabelsModal() {
+        if (!isAdmin) return;
         document.getElementById('inputAdminLabel').value = customLabels.Administrative;
         document.getElementById('inputOpsLabel').value = customLabels.Operational;
         document.getElementById('inputSalesLabel').value = customLabels['Sales & Marketing'];
@@ -639,17 +637,17 @@
 
     function saveCustomLabels(e) {
         e.preventDefault();
+        if (!isAdmin) return;
         customLabels.Administrative = document.getElementById('inputAdminLabel').value;
         customLabels.Operational = document.getElementById('inputOpsLabel').value;
         customLabels['Sales & Marketing'] = document.getElementById('inputSalesLabel').value;
 
-        localStorage.setItem('custom_type_labels', JSON.stringify(customLabels));
-        applyLabelsToUI();
+        syncToCloud();
         closeLabelsModal();
-        updateDashboard();
     }
 
     function editPayment(id) {
+        if (!isAdmin) return;
         const item = payments.find(p => p.id === id);
         if (!item) return;
 
@@ -672,6 +670,7 @@
 
     function savePayment(e) {
         e.preventDefault();
+        if (!isAdmin) return;
         const editId = document.getElementById('editPaymentId').value;
 
         const payObj = {
@@ -696,18 +695,15 @@
         }
 
         closeModal();
-        updateDashboard();
+        syncToCloud();
     }
 
     function deletePayment(id) {
+        if (!isAdmin) return;
         if (confirm('Are you sure you want to delete this payment?')) {
             payments = payments.filter(p => p.id !== id);
-            updateDashboard();
+            syncToCloud();
         }
-    }
-
-    function saveData() {
-        localStorage.setItem('recurring_payments_v3', JSON.stringify(payments));
     }
 
     window.onload = init;
