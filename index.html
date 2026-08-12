@@ -81,7 +81,7 @@
         /* Modal */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; z-index: 100; }
         .modal.active { display: flex; }
-        .modal-content { background: white; padding: 24px; border-radius: 12px; width: 100%; max-width: 450px; }
+        .modal-content { background: white; padding: 24px; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
         .form-group { margin-bottom: 14px; }
         .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); }
         .form-group input, .form-group select { width: 100%; }
@@ -96,7 +96,7 @@
     <header>
         <div>
             <h1 style="font-size: 20px; font-weight: 700;">Recurring Payments Dashboard</h1>
-            <p style="font-size: 13px; color: var(--text-muted);">Track and forecast your expense schedule with custom labels & categories</p>
+            <p style="font-size: 13px; color: var(--text-muted);">Track and forecast your expense schedule with custom labels, categories & frequencies</p>
         </div>
         <div class="header-controls">
             <select id="currencySelect" onchange="updateDashboard()">
@@ -162,7 +162,7 @@
 
     <div class="card">
         <div class="card-header">
-            <div class="card-title">All Recurring Payments</div>
+            <div class="card-title">All Payments</div>
         </div>
         <table>
             <thead>
@@ -172,7 +172,7 @@
                     <th>Payment Type</th>
                     <th>Category</th>
                     <th>Frequency</th>
-                    <th>Due Day/Date</th>
+                    <th>Schedule Details</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -184,7 +184,7 @@
 <!-- Add/Edit Payment Modal -->
 <div class="modal" id="paymentModal">
     <div class="modal-content">
-        <h2 style="font-size: 18px; margin-bottom: 16px;" id="modalTitle">Add Recurring Payment</h2>
+        <h2 style="font-size: 18px; margin-bottom: 16px;" id="modalTitle">Add Payment</h2>
         <form id="paymentForm" onsubmit="savePayment(event)">
             <input type="hidden" id="editPaymentId" value="">
             <div class="form-group">
@@ -208,20 +208,51 @@
                 <select id="payCategory"></select>
             </div>
             <div class="form-group">
-                <label>Frequency</label>
+                <label>Frequency Cycle (دورة الدفعة)</label>
                 <select id="payFreq" onchange="toggleFreqFields()">
-                    <option value="Monthly">Monthly</option>
-                    <option value="Yearly">Yearly</option>
+                    <option value="One-Time">Once (دفعة لمرة واحدة)</option>
+                    <option value="Weekly">Weekly (أسبوعية)</option>
+                    <option value="Monthly" selected>Monthly (شهرياً)</option>
+                    <option value="Quarterly">Quarterly (ربع سنوية - كل 3 أشهر)</option>
+                    <option value="Yearly">Yearly (سنوياً)</option>
+                    <option value="Custom">Custom Cycle (دورة مخصصة)</option>
                 </select>
             </div>
+
+            <!-- Conditional Inputs based on Frequency -->
+            <div class="form-group" id="dateGroup" style="display:none;">
+                <label>Specific Date (تاريخ الدفعة)</label>
+                <input type="date" id="payDate">
+            </div>
+
+            <div class="form-group" id="weekdayGroup" style="display:none;">
+                <label>Day of Week (يوم الأسبوع)</label>
+                <select id="payWeekday">
+                    <option value="0">Sunday</option>
+                    <option value="1">Monday</option>
+                    <option value="2">Tuesday</option>
+                    <option value="3">Wednesday</option>
+                    <option value="4">Thursday</option>
+                    <option value="5">Friday</option>
+                    <option value="6">Saturday</option>
+                </select>
+            </div>
+
             <div class="form-group" id="dayGroup">
                 <label>Day of Month (1-31)</label>
                 <input type="number" min="1" max="31" id="payDay" value="1">
             </div>
+
             <div class="form-group" id="monthGroup" style="display:none;">
-                <label>Month (1-12)</label>
-                <input type="number" min="1" max="12" id="payMonth" value="8">
+                <label>Month (1-12) / Starting Month for Quarterly</label>
+                <input type="number" min="1" max="12" id="payMonth" value="1">
             </div>
+
+            <div class="form-group" id="customNotesGroup" style="display:none;">
+                <label>Custom Cycle Details / Notes (تفاصيل الدورة المخصصة)</label>
+                <input type="text" id="payCustomNotes" placeholder="e.g. Every 14 days, Every 6 months...">
+            </div>
+
             <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
                 <button type="button" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save Payment</button>
@@ -281,10 +312,11 @@
         'Sales & Marketing': 'Sales Expense'
     };
 
-    let payments = JSON.parse(localStorage.getItem('recurring_payments_v2')) || [
+    let payments = JSON.parse(localStorage.getItem('recurring_payments_v3')) || [
         { id: 1, title: 'Office Lease', amount: 10000, type: 'Administrative', category: 'Rent', freq: 'Monthly', day: 1, month: 1 },
         { id: 2, title: 'Cloud Infrastructure', amount: 850, type: 'Operational', category: 'Subscriptions', freq: 'Monthly', day: 15, month: 1 },
-        { id: 3, title: 'Google & Meta Ads', amount: 3500, type: 'Sales & Marketing', category: 'Marketing', freq: 'Monthly', day: 5, month: 1 }
+        { id: 3, title: 'Marketing Campaign', amount: 5000, type: 'Sales & Marketing', category: 'Marketing', freq: 'Quarterly', day: 1, month: 1 },
+        { id: 4, title: 'Equipment Purchase', amount: 2500, type: 'Operational', category: 'Other', freq: 'One-Time', date: '2026-08-20' }
     ];
 
     let chartInstance = null;
@@ -328,6 +360,22 @@
         ySelect.value = currYear;
     }
 
+    function isPaymentDueInMonth(p, month, year) {
+        if (p.freq === 'Monthly') return true;
+        if (p.freq === 'Weekly') return true; // Weekly recurs every month
+        if (p.freq === 'Yearly') return (parseInt(p.month) - 1) === month;
+        if (p.freq === 'Quarterly') {
+            const startMonth = (parseInt(p.month) - 1) % 3;
+            return (month % 3) === startMonth;
+        }
+        if (p.freq === 'One-Time' && p.date) {
+            const d = new Date(p.date);
+            return d.getMonth() === month && d.getFullYear() === year;
+        }
+        if (p.freq === 'Custom') return true;
+        return false;
+    }
+
     function updateDashboard() {
         saveData();
         const selectedMonth = parseInt(document.getElementById('monthSelect').value);
@@ -344,12 +392,7 @@
 
         payments.forEach(p => {
             const amt = parseFloat(p.amount);
-            let isDue = false;
-
-            if (p.freq === 'Monthly') isDue = true;
-            else if (p.freq === 'Yearly' && (parseInt(p.month) - 1) === selectedMonth) isDue = true;
-
-            if (isDue) {
+            if (isPaymentDueInMonth(p, selectedMonth, selectedYear)) {
                 if (p.type === 'Administrative') totalAdmin += amt;
                 else if (p.type === 'Operational') totalOps += amt;
                 else if (p.type === 'Sales & Marketing') totalSales += amt;
@@ -382,9 +425,25 @@
         }
 
         for (let day = 1; day <= daysInMonth; day++) {
+            const currentDate = new Date(year, month, day);
+            const currentWeekday = currentDate.getDay();
+
             const dayPayments = filteredPayments.filter(p => {
-                if (p.freq === 'Monthly') return parseInt(p.day) === day;
-                if (p.freq === 'Yearly') return parseInt(p.day) === day && (parseInt(p.month) - 1) === month;
+                if (!isPaymentDueInMonth(p, month, year)) return false;
+
+                if (p.freq === 'Monthly' || p.freq === 'Yearly' || p.freq === 'Quarterly') {
+                    return parseInt(p.day) === day;
+                }
+                if (p.freq === 'Weekly') {
+                    return parseInt(p.weekday) === currentWeekday;
+                }
+                if (p.freq === 'One-Time' && p.date) {
+                    const d = new Date(p.date);
+                    return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
+                }
+                if (p.freq === 'Custom') {
+                    return parseInt(p.day) === day;
+                }
                 return false;
             });
 
@@ -417,10 +476,20 @@
 
     function renderTable(curr, filteredPayments) {
         const tbody = document.getElementById('paymentsTable');
+        const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
         tbody.innerHTML = filteredPayments.map(p => {
             let badgeClass = 'badge-admin';
             if (p.type === 'Operational') badgeClass = 'badge-ops';
             if (p.type === 'Sales & Marketing') badgeClass = 'badge-sales';
+
+            let scheduleText = '';
+            if (p.freq === 'One-Time') scheduleText = `Date: ${p.date || 'N/A'}`;
+            else if (p.freq === 'Weekly') scheduleText = `Every ${weekdays[p.weekday || 0]}`;
+            else if (p.freq === 'Monthly') scheduleText = `Day ${p.day} of every month`;
+            else if (p.freq === 'Quarterly') scheduleText = `Day ${p.day} (Start Month ${p.month})`;
+            else if (p.freq === 'Yearly') scheduleText = `Day ${p.day} (Month ${p.month})`;
+            else if (p.freq === 'Custom') scheduleText = `${p.customNotes || 'Custom schedule'} (Day ${p.day || 1})`;
 
             return `
             <tr>
@@ -428,8 +497,8 @@
                 <td>${curr} ${parseFloat(p.amount).toFixed(2)}</td>
                 <td><span class="badge ${badgeClass}">${customLabels[p.type] || p.type}</span></td>
                 <td>${p.category}</td>
-                <td>${p.freq}</td>
-                <td>${p.freq === 'Monthly' ? 'Day ' + p.day : 'Day ' + p.day + ' (Month ' + p.month + ')'}</td>
+                <td><strong>${p.freq}</strong></td>
+                <td>${scheduleText}</td>
                 <td>
                     <button class="btn-outlook" onclick="addToOutlook(${p.id})">📅 Add to Outlook</button>
                     <button class="btn-edit" onclick="editPayment(${p.id})">Edit</button>
@@ -445,22 +514,28 @@
 
         const curr = document.getElementById('currencySelect').value;
         const now = new Date();
-        let eventYear = now.getFullYear();
-        let eventMonth = item.freq === 'Yearly' ? parseInt(item.month) - 1 : now.getMonth();
-        
-        let eventDate = new Date(eventYear, eventMonth, parseInt(item.day), 9, 0, 0);
-        if (eventDate < now) {
-            if (item.freq === 'Monthly') eventDate.setMonth(eventDate.getMonth() + 1);
-            else eventDate.setFullYear(eventDate.getFullYear() + 1);
+        let eventDate = new Date();
+
+        if (item.freq === 'One-Time' && item.date) {
+            eventDate = new Date(item.date);
+        } else {
+            let month = item.month ? parseInt(item.month) - 1 : now.getMonth();
+            let day = item.day ? parseInt(item.day) : 1;
+            eventDate = new Date(now.getFullYear(), month, day, 9, 0, 0);
+            if (eventDate < now) eventDate.setMonth(eventDate.getMonth() + 1);
         }
 
         const formatDate = (date) => date.toISOString().replace(/-|:|\.\d+/g, '');
         const startDate = formatDate(eventDate);
         const endDate = formatDate(new Date(eventDate.getTime() + 30 * 60000));
 
-        const rrule = item.freq === 'Monthly' ? 'RRULE:FREQ=MONTHLY' : 'RRULE:FREQ=YEARLY';
+        let rrule = '';
+        if (item.freq === 'Weekly') rrule = 'RRULE:FREQ=WEEKLY';
+        else if (item.freq === 'Monthly') rrule = 'RRULE:FREQ=MONTHLY';
+        else if (item.freq === 'Quarterly') rrule = 'RRULE:FREQ=MONTHLY;INTERVAL=3';
+        else if (item.freq === 'Yearly') rrule = 'RRULE:FREQ=YEARLY';
 
-        const icsContent = [
+        const icsLines = [
             'BEGIN:VCALENDAR',
             'VERSION:2.0',
             'PRODID:-//Recurring Payments Dashboard//EN',
@@ -468,8 +543,12 @@
             `SUMMARY:Payment Due: ${item.title} (${curr} ${item.amount})`,
             `DESCRIPTION:Payment title: ${item.title}\\nAmount: ${curr} ${item.amount}\\nCategory: ${item.category}`,
             `DTSTART:${startDate}`,
-            `DTEND:${endDate}`,
-            rrule,
+            `DTEND:${endDate}`
+        ];
+
+        if (rrule) icsLines.push(rrule);
+
+        icsLines.push(
             'BEGIN:VALARM',
             'TRIGGER:-P1D',
             'ACTION:DISPLAY',
@@ -477,9 +556,9 @@
             'END:VALARM',
             'END:VEVENT',
             'END:VCALENDAR'
-        ].join('\n');
+        );
 
-        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const blob = new Blob([icsLines.join('\n')], { type: 'text/calendar;charset=utf-8' });
         const link = document.createElement('a');
         link.href = window.URL.createObjectURL(blob);
         link.setAttribute('download', `${item.title.replace(/\s+/g, '_')}_reminder.ics`);
@@ -490,13 +569,18 @@
 
     function toggleFreqFields() {
         const freq = document.getElementById('payFreq').value;
-        document.getElementById('monthGroup').style.display = freq === 'Yearly' ? 'block' : 'none';
+        document.getElementById('dateGroup').style.display = (freq === 'One-Time') ? 'block' : 'none';
+        document.getElementById('weekdayGroup').style.display = (freq === 'Weekly') ? 'block' : 'none';
+        document.getElementById('dayGroup').style.display = (freq === 'Monthly' || freq === 'Quarterly' || freq === 'Yearly' || freq === 'Custom') ? 'block' : 'none';
+        document.getElementById('monthGroup').style.display = (freq === 'Quarterly' || freq === 'Yearly') ? 'block' : 'none';
+        document.getElementById('customNotesGroup').style.display = (freq === 'Custom') ? 'block' : 'none';
     }
 
     function openModal() {
         document.getElementById('paymentForm').reset();
         document.getElementById('editPaymentId').value = '';
-        document.getElementById('modalTitle').innerText = 'Add Recurring Payment';
+        document.getElementById('modalTitle').innerText = 'Add Payment';
+        toggleFreqFields();
         document.getElementById('paymentModal').classList.add('active');
     }
 
@@ -574,12 +658,15 @@
         document.getElementById('payAmount').value = item.amount;
         document.getElementById('payType').value = item.type;
         document.getElementById('payCategory').value = item.category;
-        document.getElementById('payFreq').value = item.freq;
-        document.getElementById('payDay').value = item.day;
+        document.getElementById('payFreq').value = item.freq || 'Monthly';
+        document.getElementById('payDate').value = item.date || '';
+        document.getElementById('payWeekday').value = item.weekday || 0;
+        document.getElementById('payDay').value = item.day || 1;
         document.getElementById('payMonth').value = item.month || 1;
+        document.getElementById('payCustomNotes').value = item.customNotes || '';
 
         toggleFreqFields();
-        document.getElementById('modalTitle').innerText = 'Edit Recurring Payment';
+        document.getElementById('modalTitle').innerText = 'Edit Payment';
         document.getElementById('paymentModal').classList.add('active');
     }
 
@@ -587,32 +674,25 @@
         e.preventDefault();
         const editId = document.getElementById('editPaymentId').value;
 
+        const payObj = {
+            id: editId ? parseInt(editId) : Date.now(),
+            title: document.getElementById('payTitle').value,
+            amount: parseFloat(document.getElementById('payAmount').value),
+            type: document.getElementById('payType').value,
+            category: document.getElementById('payCategory').value,
+            freq: document.getElementById('payFreq').value,
+            date: document.getElementById('payDate').value,
+            weekday: parseInt(document.getElementById('payWeekday').value),
+            day: parseInt(document.getElementById('payDay').value),
+            month: parseInt(document.getElementById('payMonth').value),
+            customNotes: document.getElementById('payCustomNotes').value
+        };
+
         if (editId) {
             const index = payments.findIndex(p => p.id == editId);
-            if (index !== -1) {
-                payments[index] = {
-                    id: parseInt(editId),
-                    title: document.getElementById('payTitle').value,
-                    amount: parseFloat(document.getElementById('payAmount').value),
-                    type: document.getElementById('payType').value,
-                    category: document.getElementById('payCategory').value,
-                    freq: document.getElementById('payFreq').value,
-                    day: parseInt(document.getElementById('payDay').value),
-                    month: parseInt(document.getElementById('payMonth').value)
-                };
-            }
+            if (index !== -1) payments[index] = payObj;
         } else {
-            const newPay = {
-                id: Date.now(),
-                title: document.getElementById('payTitle').value,
-                amount: parseFloat(document.getElementById('payAmount').value),
-                type: document.getElementById('payType').value,
-                category: document.getElementById('payCategory').value,
-                freq: document.getElementById('payFreq').value,
-                day: parseInt(document.getElementById('payDay').value),
-                month: parseInt(document.getElementById('payMonth').value)
-            };
-            payments.push(newPay);
+            payments.push(payObj);
         }
 
         closeModal();
@@ -627,7 +707,7 @@
     }
 
     function saveData() {
-        localStorage.setItem('recurring_payments_v2', JSON.stringify(payments));
+        localStorage.setItem('recurring_payments_v3', JSON.stringify(payments));
     }
 
     window.onload = init;
