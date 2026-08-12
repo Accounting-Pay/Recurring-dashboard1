@@ -313,7 +313,6 @@
 </div>
 
 <script>
-    // Config الخاص بمشروعكِ
     const firebaseConfig = {
         apiKey: "AIzaSyAaI06c_lXqa1dzU9UXdKIYBsPeI1Ufsfs",
         authDomain: "my-payments-ca631.firebaseapp.com",
@@ -336,10 +335,16 @@
     let payments = [];
     let chartInstance = null;
 
+    function formatNumber(num) {
+        return parseFloat(num || 0).toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
     function init() {
         populateSelectors();
         
-        // جلب البيانات ومتابعة التحديثات الفورية أونلاين
         db.ref('dashboard_data').on('value', (snapshot) => {
             const data = snapshot.val();
             if (data) {
@@ -456,10 +461,10 @@
             }
         });
 
-        document.getElementById('totalMonth').innerText = `${curr} ${totalMonth.toFixed(2)}`;
-        document.getElementById('totalAdmin').innerText = `${curr} ${totalAdmin.toFixed(2)}`;
-        document.getElementById('totalOps').innerText = `${curr} ${totalOps.toFixed(2)}`;
-        document.getElementById('totalSales').innerText = `${curr} ${totalSales.toFixed(2)}`;
+        document.getElementById('totalMonth').innerText = `${curr} ${formatNumber(totalMonth)}`;
+        document.getElementById('totalAdmin').innerText = `${curr} ${formatNumber(totalAdmin)}`;
+        document.getElementById('totalOps').innerText = `${curr} ${formatNumber(totalOps)}`;
+        document.getElementById('totalSales').innerText = `${curr} ${formatNumber(totalSales)}`;
 
         renderCalendar(selectedMonth, selectedYear, curr, filteredPayments);
         renderChart(totalAdmin, totalOps, totalSales);
@@ -497,7 +502,7 @@
                 return false;
             });
 
-            let chips = dayPayments.map(p => `<div class="payment-chip">${p.title}: ${curr}${parseFloat(p.amount).toLocaleString('en-US')}</div>`).join('');
+            let chips = dayPayments.map(p => `<div class="payment-chip">${p.title}: ${curr}${formatNumber(p.amount)}</div>`).join('');
             grid.innerHTML += `
                 <div class="day-cell">
                     <div class="day-number">${day}</div>
@@ -549,7 +554,7 @@
             return `
             <tr>
                 <td><strong>${p.title}</strong></td>
-                <td>${curr} ${parseFloat(p.amount).toFixed(2)}</td>
+                <td>${curr} ${formatNumber(p.amount)}</td>
                 <td><span class="badge ${badgeClass}">${customLabels[p.type] || p.type}</span></td>
                 <td>${p.category}</td>
                 <td><strong>${p.freq}</strong></td>
