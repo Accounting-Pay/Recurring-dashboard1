@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recurring Payments Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg); color: var(--text-main); padding: 20px; }
+        .container { max-width: 1250px; margin: 0 auto; }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--card-bg); padding: 20px 24px; border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; flex-wrap: wrap; gap: 15px;
+        }
+        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        
+        select, input, button {
+            padding: 9px 14px; border-radius: 8px; border: 1px solid var(--border);
+            font-size: 14px; outline: none; transition: 0.2s;
+        }
+        select:focus, input:focus { border-color: var(--primary); }
+        
+        .btn-primary { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: 500; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-secondary { background: #e2e8f0; color: #334155; border: none; cursor: pointer; font-weight: 500; }
+        .btn-secondary:hover { background: #cbd5e1; }
+        .btn-outlook { background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; cursor: pointer; padding: 6px 10px; font-size: 12px; border-radius: 6px; font-weight: 600; margin-right: 4px; }
+        .btn-outlook:hover { background: #bae6fd; }
+        .btn-edit { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; cursor: pointer; padding: 6px 10px; font-size: 12px; border-radius: 6px; font-weight: 600; margin-right: 4px; }
+        .btn-edit:hover { background: #fde68a; }
+        .btn-danger { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; cursor: pointer; padding: 6px 10px; font-size: 12px; border-radius: 6px; font-weight: 600; }
+        .btn-danger:hover { background: #fca5a5; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border); }
+        .stat-card h3 { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-card .value { font-size: 22px; font-weight: 700; color: var(--text-main); }
+
+        .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+        @media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+        .card { background: var(--card-bg); border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .card-title { font-size: 16px; font-weight: 600; }
+
+        /* Calendar Styles */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+        .day-label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 8px 0; }
+        .day-cell { min-height: 85px; border: 1px solid var(--border); border-radius: 8px; padding: 6px; text-align: left; background: #fff; }
+        .day-number { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+        .day-cell.other-month { background: #f1f5f9; opacity: 0.5; }
+        .payment-chip { background: #e0e7ff; color: var(--primary); font-size: 10px; font-weight: 600; padding: 3px 5px; border-radius: 4px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Type Badges */
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; }
+        .badge-admin { background: #e0f2fe; color: #0369a1; }
+        .badge-ops { background: #fef3c7; color: #b45309; }
+        .badge-sales { background: #dcfce7; color: #15803d; }
+
+        /* Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+        th { color: var(--text-muted); font-weight: 500; background: #f8fafc; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; z-index: 100; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 24px; border-radius: 12px; width: 100%; max-width: 450px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); }
+        .form-group input, .form-group select { width: 100%; }
+
+        .cat-list { list-style: none; margin-top: 10px; max-height: 180px; overflow-y: auto; }
+        .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1 style="font-size: 20px; font-weight: 700;">Recurring Payments Dashboard</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Track and forecast your expense schedule with custom labels & categories</p>
+        </div>
+        <div class="header-controls">
+            <select id="currencySelect" onchange="updateDashboard()">
+                <option value="AED">AED</option>
+                <option value="SAR">SAR</option>
+                <option value="$">USD ($)</option>
+                <option value="€">EUR (€)</option>
+                <option value="£">GBP (£)</option>
+                <option value="KWD">KWD</option>
+            </select>
+            <select id="typeFilter" onchange="updateDashboard()">
+                <option value="ALL">All Payment Types</option>
+                <option value="Administrative" id="filterOptAdmin">Administrative</option>
+                <option value="Operational" id="filterOptOps">Operational</option>
+                <option value="Sales & Marketing" id="filterOptSales">Sales Expense</option>
+            </select>
+            <select id="monthSelect" onchange="updateDashboard()"></select>
+            <select id="yearSelect" onchange="updateDashboard()"></select>
+            <button class="btn-secondary" onclick="openCategoriesModal()">📁 Categories</button>
+            <button class="btn-secondary" onclick="openLabelsModal()">⚙️ Edit Labels</button>
+            <button class="btn-primary" onclick="openModal()">+ Add Payment</button>
+        </div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>TOTAL FOR SELECTED MONTH</h3>
+            <div class="value" id="totalMonth">0.00</div>
+        </div>
+        <div class="stat-card">
+            <h3 id="labelCardAdmin">ADMINISTRATIVE</h3>
+            <div class="value" id="totalAdmin" style="color: #0369a1;">0.00</div>
+        </div>
+        <div class="stat-card">
+            <h3 id="labelCardOps">OPERATIONAL</h3>
+            <div class="value" id="totalOps" style="color: #b45309;">0.00</div>
+        </div>
+        <div class="stat-card">
+            <h3 id="labelCardSales">SALES EXPENSE</h3>
+            <div class="value" id="totalSales" style="color: #15803d;">0.00</div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title" id="calendarTitle">Payment Calendar</div>
+            </div>
+            <div class="calendar-grid">
+                <div class="day-label">Sun</div><div class="day-label">Mon</div><div class="day-label">Tue</div>
+                <div class="day-label">Wed</div><div class="day-label">Thu</div><div class="day-label">Fri</div><div class="day-label">Sat</div>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Expense Breakdown by Type</div>
+            </div>
+            <canvas id="typeChart" height="220"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">All Recurring Payments</div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Amount</th>
+                    <th>Payment Type</th>
+                    <th>Category</th>
+                    <th>Frequency</th>
+                    <th>Due Day/Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="paymentsTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add/Edit Payment Modal -->
+<div class="modal" id="paymentModal">
+    <div class="modal-content">
+        <h2 style="font-size: 18px; margin-bottom: 16px;" id="modalTitle">Add Recurring Payment</h2>
+        <form id="paymentForm" onsubmit="savePayment(event)">
+            <input type="hidden" id="editPaymentId" value="">
+            <div class="form-group">
+                <label>Payment Title</label>
+                <input type="text" id="payTitle" required placeholder="e.g. Office Lease / Software">
+            </div>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" step="0.01" id="payAmount" required placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Payment Type</label>
+                <select id="payType">
+                    <option value="Administrative" id="formOptAdmin">Administrative</option>
+                    <option value="Operational" id="formOptOps">Operational</option>
+                    <option value="Sales & Marketing" id="formOptSales">Sales Expense</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="payCategory"></select>
+            </div>
+            <div class="form-group">
+                <label>Frequency</label>
+                <select id="payFreq" onchange="toggleFreqFields()">
+                    <option value="Monthly">Monthly</option>
+                    <option value="Yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="form-group" id="dayGroup">
+                <label>Day of Month (1-31)</label>
+                <input type="number" min="1" max="31" id="payDay" value="1">
+            </div>
+            <div class="form-group" id="monthGroup" style="display:none;">
+                <label>Month (1-12)</label>
+                <input type="number" min="1" max="12" id="payMonth" value="8">
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Payment</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Categories Modal -->
+<div class="modal" id="categoriesModal">
+    <div class="modal-content">
+        <h2 style="font-size: 18px; margin-bottom: 16px;">Manage Categories</h2>
+        <div class="form-group" style="display: flex; gap: 8px;">
+            <input type="text" id="newCatInput" placeholder="Add new category...">
+            <button class="btn-primary" onclick="addCategory()">Add</button>
+        </div>
+        <ul class="cat-list" id="catList"></ul>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" onclick="closeCategoriesModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Custom Labels Modal -->
+<div class="modal" id="labelsModal">
+    <div class="modal-content">
+        <h2 style="font-size: 18px; margin-bottom: 16px;">Edit Type Labels</h2>
+        <form onsubmit="saveCustomLabels(event)">
+            <div class="form-group">
+                <label>Administrative Label</label>
+                <input type="text" id="inputAdminLabel" required>
+            </div>
+            <div class="form-group">
+                <label>Operational Label</label>
+                <input type="text" id="inputOpsLabel" required>
+            </div>
+            <div class="form-group">
+                <label>Sales Expense Label</label>
+                <input type="text" id="inputSalesLabel" required>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button type="button" onclick="closeLabelsModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Labels</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let categories = JSON.parse(localStorage.getItem('custom_categories')) || [
+        'Rent', 'Utilities', 'Subscriptions', 'Insurance', 'Salaries', 'Marketing', 'Other'
+    ];
+
+    let customLabels = JSON.parse(localStorage.getItem('custom_type_labels')) || {
+        Administrative: 'Administrative',
+        Operational: 'Operational',
+        'Sales & Marketing': 'Sales Expense'
+    };
+
+    let payments = JSON.parse(localStorage.getItem('recurring_payments_v2')) || [
+        { id: 1, title: 'Office Lease', amount: 10000, type: 'Administrative', category: 'Rent', freq: 'Monthly', day: 1, month: 1 },
+        { id: 2, title: 'Cloud Infrastructure', amount: 850, type: 'Operational', category: 'Subscriptions', freq: 'Monthly', day: 15, month: 1 },
+        { id: 3, title: 'Google & Meta Ads', amount: 3500, type: 'Sales & Marketing', category: 'Marketing', freq: 'Monthly', day: 5, month: 1 }
+    ];
+
+    let chartInstance = null;
+
+    function init() {
+        applyLabelsToUI();
+        populateCategorySelect();
+        populateSelectors();
+        updateDashboard();
+    }
+
+    function applyLabelsToUI() {
+        document.getElementById('labelCardAdmin').innerText = customLabels.Administrative;
+        document.getElementById('labelCardOps').innerText = customLabels.Operational;
+        document.getElementById('labelCardSales').innerText = customLabels['Sales & Marketing'];
+
+        document.getElementById('filterOptAdmin').innerText = customLabels.Administrative;
+        document.getElementById('filterOptOps').innerText = customLabels.Operational;
+        document.getElementById('filterOptSales').innerText = customLabels['Sales & Marketing'];
+
+        document.getElementById('formOptAdmin').innerText = customLabels.Administrative;
+        document.getElementById('formOptOps').innerText = customLabels.Operational;
+        document.getElementById('formOptSales').innerText = customLabels['Sales & Marketing'];
+    }
+
+    function populateCategorySelect() {
+        const catSelect = document.getElementById('payCategory');
+        catSelect.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function populateSelectors() {
+        const mSelect = document.getElementById('monthSelect');
+        const ySelect = document.getElementById('yearSelect');
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        
+        mSelect.innerHTML = months.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+        mSelect.value = new Date().getMonth();
+
+        const currYear = new Date().getFullYear();
+        ySelect.innerHTML = [currYear-1, currYear, currYear+1, currYear+2].map(y => `<option value="${y}">${y}</option>`).join('');
+        ySelect.value = currYear;
+    }
+
+    function updateDashboard() {
+        saveData();
+        const selectedMonth = parseInt(document.getElementById('monthSelect').value);
+        const selectedYear = parseInt(document.getElementById('yearSelect').value);
+        const selectedTypeFilter = document.getElementById('typeFilter').value;
+        const curr = document.getElementById('currencySelect').value;
+
+        let totalMonth = 0, totalAdmin = 0, totalOps = 0, totalSales = 0;
+
+        const filteredPayments = payments.filter(p => {
+            if (selectedTypeFilter === 'ALL') return true;
+            return p.type === selectedTypeFilter;
+        });
+
+        payments.forEach(p => {
+            const amt = parseFloat(p.amount);
+            let isDue = false;
+
+            if (p.freq === 'Monthly') isDue = true;
+            else if (p.freq === 'Yearly' && (parseInt(p.month) - 1) === selectedMonth) isDue = true;
+
+            if (isDue) {
+                if (p.type === 'Administrative') totalAdmin += amt;
+                else if (p.type === 'Operational') totalOps += amt;
+                else if (p.type === 'Sales & Marketing') totalSales += amt;
+
+                if (selectedTypeFilter === 'ALL' || p.type === selectedTypeFilter) {
+                    totalMonth += amt;
+                }
+            }
+        });
+
+        document.getElementById('totalMonth').innerText = `${curr} ${totalMonth.toFixed(2)}`;
+        document.getElementById('totalAdmin').innerText = `${curr} ${totalAdmin.toFixed(2)}`;
+        document.getElementById('totalOps').innerText = `${curr} ${totalOps.toFixed(2)}`;
+        document.getElementById('totalSales').innerText = `${curr} ${totalSales.toFixed(2)}`;
+
+        renderCalendar(selectedMonth, selectedYear, curr, filteredPayments);
+        renderChart(totalAdmin, totalOps, totalSales);
+        renderTable(curr, filteredPayments);
+    }
+
+    function renderCalendar(month, year, curr, filteredPayments) {
+        const grid = document.getElementById('calendarGrid');
+        grid.innerHTML = '';
+        
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            grid.innerHTML += `<div class="day-cell other-month"></div>`;
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayPayments = filteredPayments.filter(p => {
+                if (p.freq === 'Monthly') return parseInt(p.day) === day;
+                if (p.freq === 'Yearly') return parseInt(p.day) === day && (parseInt(p.month) - 1) === month;
+                return false;
+            });
+
+            let chips = dayPayments.map(p => `<div class="payment-chip">${p.title}: ${curr}${p.amount}</div>`).join('');
+            grid.innerHTML += `
+                <div class="day-cell">
+                    <div class="day-number">${day}</div>
+                    ${chips}
+                </div>
+            `;
+        }
+    }
+
+    function renderChart(admin, ops, sales) {
+        const ctx = document.getElementById('typeChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: [customLabels.Administrative, customLabels.Operational, customLabels['Sales & Marketing']],
+                datasets: [{
+                    data: [admin, ops, sales],
+                    backgroundColor: ['#0369a1', '#b45309', '#15803d']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function renderTable(curr, filteredPayments) {
+        const tbody = document.getElementById('paymentsTable');
+        tbody.innerHTML = filteredPayments.map(p => {
+            let badgeClass = 'badge-admin';
+            if (p.type === 'Operational') badgeClass = 'badge-ops';
+            if (p.type === 'Sales & Marketing') badgeClass = 'badge-sales';
+
+            return `
+            <tr>
+                <td><strong>${p.title}</strong></td>
+                <td>${curr} ${parseFloat(p.amount).toFixed(2)}</td>
+                <td><span class="badge ${badgeClass}">${customLabels[p.type] || p.type}</span></td>
+                <td>${p.category}</td>
+                <td>${p.freq}</td>
+                <td>${p.freq === 'Monthly' ? 'Day ' + p.day : 'Day ' + p.day + ' (Month ' + p.month + ')'}</td>
+                <td>
+                    <button class="btn-outlook" onclick="addToOutlook(${p.id})">📅 Add to Outlook</button>
+                    <button class="btn-edit" onclick="editPayment(${p.id})">Edit</button>
+                    <button class="btn-danger" onclick="deletePayment(${p.id})">Delete</button>
+                </td>
+            </tr>
+        `}).join('');
+    }
+
+    function addToOutlook(id) {
+        const item = payments.find(p => p.id === id);
+        if (!item) return;
+
+        const curr = document.getElementById('currencySelect').value;
+        const now = new Date();
+        let eventYear = now.getFullYear();
+        let eventMonth = item.freq === 'Yearly' ? parseInt(item.month) - 1 : now.getMonth();
+        
+        let eventDate = new Date(eventYear, eventMonth, parseInt(item.day), 9, 0, 0);
+        if (eventDate < now) {
+            if (item.freq === 'Monthly') eventDate.setMonth(eventDate.getMonth() + 1);
+            else eventDate.setFullYear(eventDate.getFullYear() + 1);
+        }
+
+        const formatDate = (date) => date.toISOString().replace(/-|:|\.\d+/g, '');
+        const startDate = formatDate(eventDate);
+        const endDate = formatDate(new Date(eventDate.getTime() + 30 * 60000));
+
+        const rrule = item.freq === 'Monthly' ? 'RRULE:FREQ=MONTHLY' : 'RRULE:FREQ=YEARLY';
+
+        const icsContent = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//Recurring Payments Dashboard//EN',
+            'BEGIN:VEVENT',
+            `SUMMARY:Payment Due: ${item.title} (${curr} ${item.amount})`,
+            `DESCRIPTION:Payment title: ${item.title}\\nAmount: ${curr} ${item.amount}\\nCategory: ${item.category}`,
+            `DTSTART:${startDate}`,
+            `DTEND:${endDate}`,
+            rrule,
+            'BEGIN:VALARM',
+            'TRIGGER:-P1D',
+            'ACTION:DISPLAY',
+            'DESCRIPTION:Reminder: Payment due tomorrow',
+            'END:VALARM',
+            'END:VEVENT',
+            'END:VCALENDAR'
+        ].join('\n');
+
+        const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.setAttribute('download', `${item.title.replace(/\s+/g, '_')}_reminder.ics`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function toggleFreqFields() {
+        const freq = document.getElementById('payFreq').value;
+        document.getElementById('monthGroup').style.display = freq === 'Yearly' ? 'block' : 'none';
+    }
+
+    function openModal() {
+        document.getElementById('paymentForm').reset();
+        document.getElementById('editPaymentId').value = '';
+        document.getElementById('modalTitle').innerText = 'Add Recurring Payment';
+        document.getElementById('paymentModal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('paymentModal').classList.remove('active');
+    }
+
+    function openCategoriesModal() {
+        renderCatList();
+        document.getElementById('categoriesModal').classList.add('active');
+    }
+
+    function closeCategoriesModal() {
+        document.getElementById('categoriesModal').classList.remove('active');
+    }
+
+    function renderCatList() {
+        const list = document.getElementById('catList');
+        list.innerHTML = categories.map((c, i) => `
+            <li class="cat-item">
+                <span>${c}</span>
+                <button class="btn-danger" onclick="deleteCategory(${i})">Delete</button>
+            </li>
+        `).join('');
+    }
+
+    function addCategory() {
+        const input = document.getElementById('newCatInput');
+        const val = input.value.trim();
+        if (val && !categories.includes(val)) {
+            categories.push(val);
+            input.value = '';
+            localStorage.setItem('custom_categories', JSON.stringify(categories));
+            populateCategorySelect();
+            renderCatList();
+        }
+    }
+
+    function deleteCategory(index) {
+        categories.splice(index, 1);
+        localStorage.setItem('custom_categories', JSON.stringify(categories));
+        populateCategorySelect();
+        renderCatList();
+    }
+
+    function openLabelsModal() {
+        document.getElementById('inputAdminLabel').value = customLabels.Administrative;
+        document.getElementById('inputOpsLabel').value = customLabels.Operational;
+        document.getElementById('inputSalesLabel').value = customLabels['Sales & Marketing'];
+        document.getElementById('labelsModal').classList.add('active');
+    }
+
+    function closeLabelsModal() {
+        document.getElementById('labelsModal').classList.remove('active');
+    }
+
+    function saveCustomLabels(e) {
+        e.preventDefault();
+        customLabels.Administrative = document.getElementById('inputAdminLabel').value;
+        customLabels.Operational = document.getElementById('inputOpsLabel').value;
+        customLabels['Sales & Marketing'] = document.getElementById('inputSalesLabel').value;
+
+        localStorage.setItem('custom_type_labels', JSON.stringify(customLabels));
+        applyLabelsToUI();
+        closeLabelsModal();
+        updateDashboard();
+    }
+
+    function editPayment(id) {
+        const item = payments.find(p => p.id === id);
+        if (!item) return;
+
+        document.getElementById('editPaymentId').value = item.id;
+        document.getElementById('payTitle').value = item.title;
+        document.getElementById('payAmount').value = item.amount;
+        document.getElementById('payType').value = item.type;
+        document.getElementById('payCategory').value = item.category;
+        document.getElementById('payFreq').value = item.freq;
+        document.getElementById('payDay').value = item.day;
+        document.getElementById('payMonth').value = item.month || 1;
+
+        toggleFreqFields();
+        document.getElementById('modalTitle').innerText = 'Edit Recurring Payment';
+        document.getElementById('paymentModal').classList.add('active');
+    }
+
+    function savePayment(e) {
+        e.preventDefault();
+        const editId = document.getElementById('editPaymentId').value;
+
+        if (editId) {
+            const index = payments.findIndex(p => p.id == editId);
+            if (index !== -1) {
+                payments[index] = {
+                    id: parseInt(editId),
+                    title: document.getElementById('payTitle').value,
+                    amount: parseFloat(document.getElementById('payAmount').value),
+                    type: document.getElementById('payType').value,
+                    category: document.getElementById('payCategory').value,
+                    freq: document.getElementById('payFreq').value,
+                    day: parseInt(document.getElementById('payDay').value),
+                    month: parseInt(document.getElementById('payMonth').value)
+                };
+            }
+        } else {
+            const newPay = {
+                id: Date.now(),
+                title: document.getElementById('payTitle').value,
+                amount: parseFloat(document.getElementById('payAmount').value),
+                type: document.getElementById('payType').value,
+                category: document.getElementById('payCategory').value,
+                freq: document.getElementById('payFreq').value,
+                day: parseInt(document.getElementById('payDay').value),
+                month: parseInt(document.getElementById('payMonth').value)
+            };
+            payments.push(newPay);
+        }
+
+        closeModal();
+        updateDashboard();
+    }
+
+    function deletePayment(id) {
+        if (confirm('Are you sure you want to delete this payment?')) {
+            payments = payments.filter(p => p.id !== id);
+            updateDashboard();
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem('recurring_payments_v2', JSON.stringify(payments));
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
