@@ -335,8 +335,12 @@
     let payments = [];
     let chartInstance = null;
 
-    function formatNumber(num) {
-        return parseFloat(num || 0).toLocaleString('en-US', {
+function formatNumber(num) {
+        if (num === undefined || num === null || num === '') return '0.00';
+        let val = Number(num);
+        if (isNaN(val)) return '0.00';
+        
+        return val.toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         });
