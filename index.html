@@ -497,7 +497,7 @@
                 return false;
             });
 
-            let chips = dayPayments.map(p => `<div class="payment-chip">${p.title}: ${curr}${p.amount}</div>`).join('');
+            let chips = dayPayments.map(p => `<div class="payment-chip">${p.title}: ${curr}${parseFloat(p.amount).toLocaleString('en-US')}</div>`).join('');
             grid.innerHTML += `
                 <div class="day-cell">
                     <div class="day-number">${day}</div>
